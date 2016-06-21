@@ -33,12 +33,7 @@ function geo_vessel_azimuth {
         return average.
     }
     LOCAL result IS signed_vangle(vessel:up:starvector, plane_v, vessel:up:forevector).
-    UNTIL result > average - 180 {
-        SET result TO result + 360.
-    }
-    UNTIL result <= average + 180 {
-        SET result TO result - 360.
-    }
+    SET result TO geo_angle_average(result, average).
     // TODO compare to vectorexclude/ship:up/ship:north implementation
 
     return result.
@@ -48,19 +43,38 @@ function geo_vessel_roll {
     parameter direction. // ship-raw
     parameter average is 0. // do +-360 until near this value. also, the default value to return if vector is facing up
     parameter vessel is ship.
-    // returns navball roll value. this is different from direction:roll
+    // return direction roll value relative to the vessel
 
     LOCAL plane_v IS vcrs(vcrs(direction:forevector, vessel:up:forevector), direction:forevector). // normal of the plane to find the angle with
     if plane_v:mag = 0 { // TODO eps
         return average.
     }
     LOCAL result IS signed_vangle(direction:topvector, plane_v, direction:forevector).
-    UNTIL result > average - 180 {
-        SET result TO result + 360.
-    }
-    UNTIL result <= average + 180 {
-        SET result TO result - 360.
-    }
-    print result.
+    SET result TO geo_angle_average(result, average).
     return result.
+}
+
+function geo_vessel_pitch {
+    parameter vector. // ship-raw
+    parameter average is 0. // do +-360 until near this value. also, the default value to return if vector is facing up
+    parameter vessel is ship.
+    // return vector pitch value relative to the vessel
+
+    LOCAL result IS 90 - vectorangle(vessel:up:forevector, vector).
+    SET result TO geo_angle_average(result, average).
+    return result.
+}
+
+function geo_angle_average {
+    parameter input. // degrees
+    parameter average is 0. // do +-360 until near this value. also, the default value to return if vector is facing up
+    parameter vessel is ship.
+
+    UNTIL input > average - 180 {
+        SET input TO input + 360.
+    }
+    UNTIL input <= average + 180 {
+        SET input TO input - 360.
+    }
+    return input.    
 }
