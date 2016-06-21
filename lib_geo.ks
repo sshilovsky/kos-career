@@ -39,7 +39,28 @@ function geo_vessel_azimuth {
     UNTIL result <= average + 180 {
         SET result TO result - 360.
     }
+    // TODO compare to vectorexclude/ship:up/ship:north implementation
 
     return result.
 }
 
+function geo_vessel_roll {
+    parameter direction. // ship-raw
+    parameter average is 0. // do +-360 until near this value. also, the default value to return if vector is facing up
+    parameter vessel is ship.
+    // returns navball roll value. this is different from direction:roll
+
+    LOCAL plane_v IS vcrs(vcrs(direction:forevector, vessel:up:forevector), direction:forevector). // normal of the plane to find the angle with
+    if plane_v:mag = 0 { // TODO eps
+        return average.
+    }
+    LOCAL result IS signed_vangle(direction:topvector, plane_v, direction:forevector).
+    UNTIL result > average - 180 {
+        SET result TO result + 360.
+    }
+    UNTIL result <= average + 180 {
+        SET result TO result - 360.
+    }
+    print result.
+    return result.
+}
