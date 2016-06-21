@@ -12,6 +12,8 @@ GLOBAL lib_plane_loop_step_ref IS 0.
 
 GLOBAL lib_plane_param_target IS 0.
 GLOBAL lib_plane_param_maxroll IS 30.
+GLOBAL lib_plane_param_speed IS 0.
+GLOBAL lib_plane_param_height IS 10000.
 
 
 function plane_set_target {
@@ -22,6 +24,16 @@ function plane_set_target {
 function plane_set_maxroll {
     parameter maxroll.
     SET lib_plane_param_maxroll TO maxroll.
+}
+
+function plane_set_speed {
+    parameter speed.
+    SET lib_plane_param_speed TO speed.
+}
+
+function plane_set_height {
+    parameter height.
+    SET lib_plane_param_height TO height.
 }
 
 
@@ -66,8 +78,11 @@ function lib_plane_step_roll {
 
 
 function plane_init_cruise {
-    parameter param_speed. // keep this level
-    parameter param_height. // keep this level
+    parameter param_speed IS lib_plane_param_speed. // keep this level
+    parameter param_height IS lib_plane_param_height. // keep this level
+    SET lib_plane_param_speed TO param_speed.
+    SET lib_plane_param_height TO param_height.
+
 
     SET lib_plane_speed_pid TO pidloop(0, 0, 0, 0, 1).
     SET lib_plane_pitch_pid TO pidloop(0.01, 0.001, 0.005, -1, 1).
@@ -103,7 +118,8 @@ function lib_plane_step_cruise {
 
 
 function plane_init_climb {
-    parameter param_speed. // maximum pitch while maintaining this speed
+    parameter param_speed IS lib_plane_param_speed. // keep this level
+    SET lib_plane_param_speed TO param_speed.
 
     // TODO eliminate 2-side feedback between these two pids:
     SET lib_plane_horizon_pid TO pidloop(-1.5, -0.12, -5, 0, 45).
