@@ -107,7 +107,7 @@ function lib_plane_step_roll {
                     lib_plane_param_target:position).
             LOCAL azimuth_output IS lib_plane_azimuth_pid:update(
                     time:seconds(), dist_x).
-            print dist_x + " ; " + azimuth_output.
+            //print dist_x + " ; " + azimuth_output.
             
             SET lib_plane_roll_pid:setpoint TO azimuth_output.
         }
@@ -137,14 +137,13 @@ function plane_init_cruise {
     lib_plane_init_roll().
 
     SET lib_plane_loop_step_ref TO lib_plane_step_cruise@.
-    SET lib_plane_speed_pid:setpoint TO param_speed.
-    SET lib_plane_pitch_pid:setpoint TO param_height.
 }
 
 function lib_plane_step_cruise {
     LOCAL speed_input IS ship:velocity:surface:mag.
     SET lib_plane_speed_pid:kp TO ship:mass / ship:maxthrust.
     SET lib_plane_speed_pid:ki TO lib_plane_speed_pid:kp / 10.
+    SET lib_plane_speed_pid:setpoint TO lib_plane_param_speed.
     LOCAL speed_output IS lib_plane_speed_pid:update(time:seconds(), speed_input).
     lock throttle to speed_output.
 
@@ -158,6 +157,7 @@ function lib_plane_step_cruise {
         } else {
             SET pitch_input TO ship:apoapsis.
         }
+        SET lib_plane_pitch_pid:setpoint TO lib_plane_param_height.
         local pitch_output is lib_plane_pitch_pid:update(time:seconds(), pitch_input).
         set ship:control:pitch to pitch_output.
     }
@@ -175,7 +175,6 @@ function plane_init_climb {
     lib_plane_init_roll().
 
     SET lib_plane_loop_step_ref TO lib_plane_step_climb@.
-    SET lib_plane_horizon_pid:setpoint TO param_speed.
 }
 
 function lib_plane_step_climb {
@@ -186,6 +185,7 @@ function lib_plane_step_climb {
     } else {
         LOCAL speed_current IS ship:velocity:surface:mag.
 
+        SET lib_plane_horizon_pid:setpoint TO lib_plane_param_speed.
         LOCAL horizon_output IS lib_plane_horizon_pid:update(time:seconds(), speed_current).
         
 
@@ -211,7 +211,6 @@ function plane_init_lower {
     SET lib_plane_param_minpitch TO param_minpitch.
 
     SET lib_plane_speed_pid TO pidloop(0, 0, 0, 0, 1).
-    SET lib_plane_speed_pid:setpoint TO param_speed.
 
     lib_plane_init_roll().
 
@@ -220,7 +219,6 @@ function plane_init_lower {
         0.1/100,
         -3 * (lib_plane_param_minpitch / 30)/100,
         lib_plane_param_minpitch, 10).
-    SET lib_plane_horizon_pid:setpoint TO lib_plane_param_height.
 
     SET lib_plane_pitch_pid TO pidloop(
         0.06, 0.006, 0.015, -1, 1).
@@ -232,12 +230,14 @@ function lib_plane_step_lower {
     LOCAL speed_input IS ship:velocity:surface:mag.
     SET lib_plane_speed_pid:kp TO ship:mass / ship:maxthrust.
     SET lib_plane_speed_pid:ki TO lib_plane_speed_pid:kp / 10.
+    SET lib_plane_speed_pid:setpoint TO lib_plane_param_speed.
     LOCK throttle TO lib_plane_speed_pid:update(time:seconds(), speed_input).
 
     lib_plane_step_roll().
     if sas {
         SET ship:control:pitch TO 0.
     } else {
+        SET lib_plane_horizon_pid:setpoint TO lib_plane_param_height.
         LOCAL horizon_output IS lib_plane_horizon_pid:update(time:seconds(), altitude).
 
         LOCAL horizon_current IS geo_vessel_pitch(ship:velocity:surface).

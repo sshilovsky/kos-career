@@ -27,7 +27,6 @@ unlock steering.
 until false {
     LOCAL wheel_output IS wheel_pid:update(time:seconds(), wheel_input).
     SET ship:control:wheelsteer TO wheel_output.
-    print "wheel_output = " + wheel_output.
 
     IF abs(wheel_pid:error) < 1 {
         // TODO check for turning speed ~= 0
