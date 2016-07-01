@@ -33,7 +33,7 @@ until false {
         BREAK.
     }
 
-    set speed_pid:kp to ship:mass / ship:maxthrust.
+    set speed_pid:kp to ship:mass / max(ship:maxthrust, 0.001).
     set speed_pid:ki to speed_pid:kp / 10.
     LOCAL speed_output IS speed_pid:update(time:seconds(), speed_input).
     LOCK throttle TO speed_output.
