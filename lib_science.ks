@@ -22,8 +22,56 @@ ON ship:parts:length {
     preserve.
 }
 
+
+FUNCTION science_run_tests {
+    FOR p IN ship:parts { // cannot use modulesnamed here, because when one is used, a few others may disappear
+        if p:hasmodule("ModuleTestSubject") {
+            LOCAL m IS p:getmodule("ModuleTestSubject").
+            if m:hasevent("run test") {
+                print "running test on " + p:name.
+                m:doevent("run test").
+            }
+        }
+    }
+}
+
+FUNCTION science_collect_rerunnable {
+    for m in ship:modulesnamed("ModuleScienceExperiment") {
+        if m:rerunnable and not m:hasdata and not m:inoperable {
+            //print "deploying " + m:part:name.
+            m:deploy.
+        }
+    }
+}
+
+FUNCTION science_transmit_rerunnable {
+    PARAMETER min_ec IS 5. // minimum electricity to keep
+
+    LOCAL ec IS util_get_resource("ElectricCharge"):amount - min_ec.
+
+    for m in ship:modulesnamed("ModuleScienceExperiment") {
+        if m:hasdata {
+            if m:data[0]:transmitvalue > 0.1 {
+                LOCAL transmit_ec IS 90. // TODO auto
+                if ec < transmit_ec {
+                    print "not enough EC to transmit " + m:part:name.
+                    break.
+                }
+                SET ec TO ec - transmit_ec.
+                print "transmitting " + m:part:name.
+                m:transmit.
+            } else {
+                //print "dropping " + m:part:name.
+                m:dump.
+            }
+        }
+    }
+}
+
+
 FUNCTION science_transmit_rerunnable {
     PARAMETER data_value_threshold IS 0.1.
+    // TODO deprecated
 
     if lib_science_modules_deployed:length {
         print "science_transmit_rerunnable: deploying in progress. abort.".
