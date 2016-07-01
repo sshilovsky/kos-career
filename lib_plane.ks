@@ -22,11 +22,13 @@ GLOBAL lib_plane_param_minpitch IS -30.
 function plane_set_target {
     parameter tgt is 0.
     SET lib_plane_param_target TO tgt.
+    lib_plane_init_roll().
 }
 
 function plane_set_align {
     parameter align is 0.
     SET lib_plane_param_align TO align.
+    lib_plane_init_roll().
 }
 
 function plane_set_maxroll {
