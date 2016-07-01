@@ -1,7 +1,20 @@
 @lazyglobal off.
 run once lib_list.
 
+FUNCTION util_get_resource {
+    PARAMETER name.
+    PARAMETER vessel IS ship.
+
+    for r in vessel:resources {
+        if r:name = name {
+            return r.
+        }
+    }
+    return 0.
+}
+
 FUNCTION util_get_vessel_modules {
+    // TODO deprecated
     PARAMETER vessel.
     PARAMETER modulename.
 
