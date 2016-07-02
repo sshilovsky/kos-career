@@ -1,6 +1,19 @@
 @lazyglobal off.
 run once lib_list.
 
+function util_get_weight {
+    return ship:mass * body:mu
+            / (body:radius + altitude) / (body:radius + altitude).
+}
+
+function util_twr_throttle {
+    parameter twr.
+    // TODO account for SFRBs
+
+    return min(1, max(0, twr * util_get_weight() /
+            max(availablethrust, 0.000001))).
+}
+
 FUNCTION util_get_resource {
     PARAMETER name.
     PARAMETER vessel IS ship.
