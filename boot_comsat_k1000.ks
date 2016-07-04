@@ -1,4 +1,5 @@
 @lazyglobal off.
+// TODO split by 5kb files
 // equatorial kerbin comsat network
 parameter target_orbit is 1000000. // accounted for kerbin radius
 parameter angle_period is 90.
@@ -531,6 +532,7 @@ if comsat_index > 0 {
     local error is get_root_angle_error().
     notify("root angle error: " + error).
     local period_delta is -360 * (1/ship:orbit:period - 1/comsat_root:orbit:period).
+    print period_delta.
     local alarm is 0.
     local neta is 0.
     if abs(error) > max_angle_error {
@@ -540,14 +542,15 @@ if comsat_index > 0 {
                 + " synced root comsat angle. Adjust orbital period").
     } else {
         print "less".
-        print (error - max_angle_error) / (period_delta).
-        print (error + max_angle_error) / (period_delta).
-        set neta to max( // TODO check this carefully
-                (error - max_angle_error) / (period_delta),
-                (error + max_angle_error) / (period_delta)).
+        if period_delta > 0 {
+            set neta to (error + max_angle_error) / period_delta.
+        } else {
+            set neta to (error - max_angle_error) / period_delta.
+        }
         set alarm to addalarm("Raw", time:seconds + neta, "Desync " + ship:name, ship:name
                 + " desynced root comsat angle. Adjust orbital period").
     }
+    notify("resync in " + neta + "s").
     if alarm="" {
         hudtext(ship:name + ": error creating (de)sync alarm",
             30, //delayseconds - blinking message
