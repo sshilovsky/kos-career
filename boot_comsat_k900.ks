@@ -1,3 +1,4 @@
+@lazyglobal off.
 // equatorial kerbin comsat network
 parameter target_orbit is 900000. // accounted for kerbin radius
 parameter angle_period is 90.
@@ -33,7 +34,8 @@ function wait_rt_connection {
 function wait_comsat_root_ready {
     local first is true.
     until comsat_root:orbit:periapsis > target_orbit * 0.9 {
-        hudtext(ship:name + ": waiting for " + comsat_root:name + " to be set up",
+        hudtext(ship:name + ": waiting for " + comsat_root:name
+                + " to be set up",
             1, //delayseconds - blinking message
             2, // upper center
             40, // size modifier
@@ -71,7 +73,7 @@ function calculate_burn_time {
                     + (engine:availablethrustat(0) / engine:ISP).
         }
     }
-    set isp_avg to SHIP:availablethrustat(0) / back_isp.
+    local isp_avg is SHIP:availablethrustat(0) / back_isp.
 
     // calculating burn time: https://www.reddit.com/r/Kos/comments/3ftcwk/compute_burn_time_with_calculus/?st=iq4cy000&sh=a90bb600
     // LOCAL f IS en[0]:MAXTHRUST * 1000.  // Engine Thrust (kg * m/s²)
@@ -112,6 +114,7 @@ function lock_steering {
     }
 
     wait until (vectorangle(ship:facing:forevector, tgt_v) < 1
+            and vectorangle(ship:facing:topvector, tgt:topvector) < 1
             and ship:angularvel:mag < 0.01)
             or (time_limit >= 0 and time:seconds >= time_limit).
 }
@@ -119,10 +122,19 @@ function lock_steering {
 function align_solar {
     parameter time_limit is -1.
 
+    // assert solar panel is on the eastern side of the ship
     local solar_dir is vcrs(body:prograde:forevector,
-            body:position - sun:position). // direction to make use of solar
-                                           // panels
-    lock_steering(solar_dir, time_limit).
+            sun:position - body:position):normalized.
+    local solar_dir_top is vcrs(solar_dir,
+            sun:position - body:position):normalized.
+    local dir is lookdirup(solar_dir, solar_dir_top).
+
+    lock_steering(dir, time_limit).
+
+    lock steering to lookdirup( // relock to functional expression
+        vcrs(body:prograde:forevector, sun:position-body:position):normalized,
+        vcrs(vcrs(body:prograde:forevector, sun:position-body:position),
+                 sun:position-body:position):normalized).
 }
 
 function notify {
@@ -186,7 +198,6 @@ function parse_index {
             if ch="7" { set unch to 7. }
             if ch="8" { set unch to 8. }
             if ch="9" { set unch to 9. }
-            // TODO unchar instead
             set index to index * 10 + unch.
         } else {
             return 0.
@@ -218,7 +229,7 @@ if ship:status="PRELAUNCH" or ship:status="LANDED" {
     // launch
     wait_rt_connection().
     switch to 0.
-    run booster_t1(low_orbit, 90, 6.5).
+    run booster_t1(low_orbit, 90, 7).
 
     notify("apoapsis so far: " + ship:apoapsis).
     notify("stage fuel left: " + stage:liquidfuel).
@@ -233,9 +244,8 @@ if ship:status="PRELAUNCH" or ship:status="LANDED" {
 
 if apoapsis < low_orbit {
     notify("suborbital transition").
+    lock_steering(ship:velocity:orbit).
     lock steering to ship:velocity:orbit.
-    wait until vectorangle(ship:facing:forevector,
-            ship:velocity:orbit) < 1.
     lock throttle to 1.
     wait until ship:apoapsis > low_orbit
             or ship:periapsis > body:atm:height.
@@ -289,7 +299,6 @@ if ship:periapsis < body:atm:height {
 
 if comsat_index = 0 {
     if ship:apoapsis < target_orbit * 0.9 {
-        // TODO wait for pe?
         notify("target transition").
         lock_steering(prograde:forevector).
         lock steering to prograde:forevector. // changeable
@@ -333,7 +342,6 @@ if comsat_index = 0 {
                 // comsat
         local beta is 180 - alpha - gamma. // angle between this comsat and
                 // root comsat to start transition at
-        print beta.
 
         local omega_delta is 360*(1/ship:orbit:period - 1/root_period).
                 // angular speed of this comsat relative to root comsat
@@ -371,8 +379,9 @@ if comsat_index = 0 {
     }
 
     if abs(ship:orbit:period - comsat_root:orbit:period) > 0.00001 {
+        // TODO if angle is far from 90deg, increase/decrease the period so that angles would eventually synchronize. add alarm on that moment
         notify("period synchronizing").
-        print ship:orbit:period + " vs. " + comsat_root:orbit:period.
+        //print ship:orbit:period + " vs. " + comsat_root:orbit:period.
         local const is 1. // 1 if the period is too low, -1 if too big
         if ship:orbit:period > comsat_root:orbit:period {
             set const to -1.
@@ -383,7 +392,7 @@ if comsat_index = 0 {
         local period0 is ship:orbit:period.
         lock throttle to 0.000000001.
         until const * (comsat_root:orbit:period - period0) < 0.00001 {
-            print comsat_root:orbit:period - period0 + " : " + throttle.
+            //print comsat_root:orbit:period - period0 + " : " + throttle.
             wait 0.
             local newtime is time:seconds.
             local period is ship:orbit:period.
@@ -406,16 +415,19 @@ if comsat_index = 0 {
             set period0 to period.
         }
         lock throttle to 0.
-        print "#"+(comsat_root:orbit:period - period0).
-        print "#"+(comsat_root:orbit:period - ship:orbit:period).
+        //print "#"+(comsat_root:orbit:period - period0).
+        //print "#"+(comsat_root:orbit:period - ship:orbit:period).
     }
-    print ship:orbit:period + " vs. " + comsat_root:orbit:period.
+    //print ship:orbit:period + " vs. " + comsat_root:orbit:period.
 }
 
 notify("solar aligning").
 align_solar().
+
+// TODO maintain angular velocity 2π/kerbin:orbit:period
+// though KSP doesn't shift EC income due to rotation, so noone cares
 wait until ship:angularvel:mag < 0.01.
-unlock steering.
-wait 1.
 sas on.
+
+unlock steering.
 notify("finished").
