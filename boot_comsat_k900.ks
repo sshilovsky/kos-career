@@ -1,7 +1,10 @@
 @lazyglobal off.
 // equatorial kerbin comsat network
-parameter target_orbit is 900000. // accounted for kerbin radius
+parameter target_orbit is 1000000. // accounted for kerbin radius
 parameter angle_period is 90.
+parameter max_angle_error is 5.  // when this is exceeded, increase/decrease
+            // period sligtly to synchronize angles slowly
+
 parameter low_orbit is 80000.
 
 set ship:control:pilotmainthrottle to 0.
@@ -9,11 +12,70 @@ clearvecdraws().
 print "wait until career():canmakenodes.".
 wait until career():canmakenodes.
 until not hasnode {
-    local nd is nextnode.
-    remove nd.
+    wait 0.1.
+    if hasnode {
+        local nd is nextnode.
+        remove nd.
+    }
 }
 sas off.
 
+function pe_vector {
+    parameter vessel.
+
+    local norm is vcrs(vessel:position-vessel:body:position,
+            vessel:velocity:orbit):normalized.
+    local res is angleaxis(-vessel:orbit:trueanomaly, norm)
+            * (vessel:position - vessel:body:position).
+
+    return res.
+}
+
+function mean_anomaly {
+    parameter orbit.
+
+    // https://en.wikipedia.org/w/index.php?title=Eccentric_anomaly&oldid=721113565
+    local theta is orbit:trueanomaly.
+    local tanE2 is sqrt((1-orbit:eccentricity)/(1+orbit:eccentricity))
+            * tan(theta/2).
+    local EE is 2 * arctan(tanE2). // eccentric anomaly
+    return EE - orbit:eccentricity * sin(EE).
+}
+
+function get_root_angle {
+    local norm is vcrs(ship:velocity:orbit, body:position).
+    //local beta0 is -signed_vangle(ship:position - body:position,
+    //        comsat_root:position - body:position,
+    //        norm). // orient
+    local pe_self is pe_vector(ship).
+    local pe_root is pe_vector(comsat_root).
+    local pe_angle is signed_vangle(pe_root, pe_self, norm).
+    print "pe_angle: " + pe_angle.
+
+    local beta0 is pe_angle + mean_anomaly(ship:orbit) - mean_anomaly(comsat_root:orbit).
+
+    until beta0 >= 0 {
+        set beta0 to beta0 + 360.
+    }
+    until beta0 < 360 {
+        set beta0 to beta0 - 360.
+    }
+    print "root_angle: " + beta0.
+    return beta0.
+}
+
+function get_root_angle_error {
+    local beta0 is get_root_angle().
+    local err is beta0 - comsat_index * angle_period.
+    until err > -180 {
+        set err to err + 360.
+    }
+    until err <= 180 {
+        set err to err - 360.
+    }
+    print "root_angle_error: " + err.
+    return err.
+}
 function wait_rt_connection {
     if not addons:rt:available {
         return.
@@ -225,21 +287,30 @@ if comsat_index > 0 {
     set comsat_root to vessel(parse_root()).
 }
 
+function antennas_event {
+    parameter evt.
+
+    for m in ship:modulesnamed("ModuleRTAntenna") {
+        if m:hasevent(evt) {
+            m:doevent(evt).
+        }
+    }
+}
+
 if ship:status="PRELAUNCH" or ship:status="LANDED" {
     // launch
+    antennas_event("activate").
     wait_rt_connection().
     switch to 0.
-    run booster_t1(low_orbit, 90, 7).
+    when ship:verticalspeed > 5 then {
+        antennas_event("deactivate").
+    }
+    run booster_t1(low_orbit, 90, 7.0).
 
     notify("apoapsis so far: " + ship:apoapsis).
     notify("stage fuel left: " + stage:liquidfuel).
-    wait until stage:ready. stage. // separate booster
-    for m in ship:modulesnamed("ModuleRTAntenna") {
-        if m:hasevent("activate") {
-            m:doevent("activate").
-        }
-    }
-    panels on.
+    wait 0.1. wait until stage:ready. stage. // separate booster
+    antennas_event("activate").
 }
 
 if apoapsis < low_orbit {
@@ -297,6 +368,22 @@ if ship:periapsis < body:atm:height {
     ap_circularize("LO circularization", body:atm:height).
 }
 
+align_solar(0).
+if ship:ElectricCharge < 50 {
+    local first is true.
+    until ship:ElectricCharge > 50 {
+        hudtext(ship:name + ": charging",
+            1, //delayseconds - blinking message
+            2, // upper center
+            40, // size modifier
+            rgb(1, 0.5, 0), // orange
+            first).
+        wait 1.5.
+        set first to false.
+    }
+    wait until ship:ElectricCharge > 50.
+}
+
 if comsat_index = 0 {
     if ship:apoapsis < target_orbit * 0.9 {
         notify("target transition").
@@ -340,15 +427,13 @@ if comsat_index = 0 {
         local gamma is 360 * (transition_time + burn_time/2) / root_period.
                 // angle which root comsat gonna pass during transition of this
                 // comsat
-        local beta is 180 - alpha - gamma. // angle between this comsat and
+        local beta is gamma + alpha - 180. // angle between this comsat and
                 // root comsat to start transition at
 
         local omega_delta is 360*(1/ship:orbit:period - 1/root_period).
                 // angular speed of this comsat relative to root comsat
 
-        local beta0 is signed_vangle(ship:position - body:position,
-                comsat_root:position - body:position,
-                vcrs(ship:velocity:orbit, body:position)). // orient
+        local beta0 is get_root_angle().
 
         local delta_angle is beta - beta0.
         until delta_angle >= 0 {
@@ -377,13 +462,28 @@ if comsat_index = 0 {
     if ship:periapsis < target_orbit * 0.8 {
         ap_circularize("target circularization", target_orbit * 0.8).
     }
+    local target_period is comsat_root:orbit:period.
+    local period_acceptable_error is 0.001.
+    {
+        // if angle is far from 90deg, increase/decrease the period so that
+        // angles would eventually synchronize. add alarm on that moment.  Use
+        // max_angle_error
+        local root_angle_error is get_root_angle_error().
+        if abs(root_angle_error) > max_angle_error {
+            set period_acceptable_error to 1.
+            if root_angle_error > 0 {
+                set target_period to target_period + 10.
+            } else {
+                set target_period to target_period - 10.
+            }
+        }
+    }
 
-    if abs(ship:orbit:period - comsat_root:orbit:period) > 0.00001 {
-        // TODO if angle is far from 90deg, increase/decrease the period so that angles would eventually synchronize. add alarm on that moment
-        notify("period synchronizing").
-        //print ship:orbit:period + " vs. " + comsat_root:orbit:period.
+    if abs(ship:orbit:period - target_period) > period_acceptable_error {
+        notify("orbital period synchronizing").
+        //print ship:orbit:period + " vs. " + target_period.
         local const is 1. // 1 if the period is too low, -1 if too big
-        if ship:orbit:period > comsat_root:orbit:period {
+        if ship:orbit:period > target_period {
             set const to -1.
         }
         lock_steering(const * prograde:forevector).
@@ -391,8 +491,8 @@ if comsat_index = 0 {
         local time0 is time:seconds.
         local period0 is ship:orbit:period.
         lock throttle to 0.000000001.
-        until const * (comsat_root:orbit:period - period0) < 0.00001 {
-            //print comsat_root:orbit:period - period0 + " : " + throttle.
+        until const * (target_period - period0) < period_acceptable_error/100 {
+            //print target_period - period0 + " : " + throttle.
             wait 0.
             local newtime is time:seconds.
             local period is ship:orbit:period.
@@ -400,10 +500,10 @@ if comsat_index = 0 {
                 local deltat is newtime - time0.
                 local delta_period is const * (period - period0).
                 if delta_period > 0 {
-                    local error is const * (comsat_root:orbit:period - period).
+                    local error is const * (target_period - period).
 
                     local newthrottle is throttle.
-                    if error / delta_period > 4 {
+                    if error / delta_period > 10 {
                         set newthrottle to min(1, throttle * 1.1).
                     } else {
                         set newthrottle to 0.000000001.
@@ -415,19 +515,58 @@ if comsat_index = 0 {
             set period0 to period.
         }
         lock throttle to 0.
-        //print "#"+(comsat_root:orbit:period - period0).
-        //print "#"+(comsat_root:orbit:period - ship:orbit:period).
+        //print "#"+(target_period - period0).
+        //print "#"+(target_period - ship:orbit:period).
     }
-    //print ship:orbit:period + " vs. " + comsat_root:orbit:period.
 }
 
 notify("solar aligning").
 align_solar().
 
-// TODO maintain angular velocity 2π/kerbin:orbit:period
-// though KSP doesn't shift EC income due to rotation, so noone cares
-wait until ship:angularvel:mag < 0.01.
-sas on.
+notify("finished").
+
+if comsat_index > 0 {
+    notify("orbital periods: " + ship:orbit:period + " vs. "
+            + comsat_root:orbit:period).
+    local error is get_root_angle_error().
+    notify("root angle error: " + error).
+    local period_delta is -360 * (1/ship:orbit:period - 1/comsat_root:orbit:period).
+    local alarm is 0.
+    local neta is 0.
+    if abs(error) > max_angle_error {
+        print "more".
+        set neta to error / (period_delta).
+        set alarm to addalarm("Raw", time:seconds + neta, "Sync " + ship:name, ship:name
+                + " synced root comsat angle. Adjust orbital period").
+    } else {
+        print "less".
+        print (error - max_angle_error) / (period_delta).
+        print (error + max_angle_error) / (period_delta).
+        set neta to max( // TODO check this carefully
+                (error - max_angle_error) / (period_delta),
+                (error + max_angle_error) / (period_delta)).
+        set alarm to addalarm("Raw", time:seconds + neta, "Desync " + ship:name, ship:name
+                + " desynced root comsat angle. Adjust orbital period").
+    }
+    if alarm="" {
+        hudtext(ship:name + ": error creating (de)sync alarm",
+            30, //delayseconds - blinking message
+            2, // upper center
+            30, // size modifier
+            rgb(1, 0.5, 0), // orange
+            true).
+        add node(time:seconds + neta, 0, 0, 0).
+    } else {
+        set alarm:action to "PauseGame".
+        // TODO delete future alarms; check kac:available
+    }
+}
 
 unlock steering.
-notify("finished").
+sas on.
+hudtext(ship:name + ": mind directing PersistentRotation to Kerbol",
+    30, //delayseconds - blinking message
+    2, // upper center
+    30, // size modifier
+    rgb(1, 0.5, 0), // orange
+    true).
