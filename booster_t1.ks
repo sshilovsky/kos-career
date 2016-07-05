@@ -4,10 +4,9 @@ parameter target_apoapsis is 80000.
 parameter ascent_compass is 90. // TODO default 90
 
 parameter pitch_angle is 5. // pitch angle
+parameter throttle_speed is 75. // speed before pitch maneuver
 parameter low_twr is 1.8. // low atm twr
 parameter high_twr is 2.5. // high atm twr
-
-parameter throttle_speed is 75. // speed before pitch maneuver
 parameter regain_control_alt is 32000.
 
 
@@ -31,9 +30,10 @@ function booster_notify {
         true).
 }
 
-lock steering to geo_side_heading(ascent_compass, 90).
-until ship:airspeed < 0.01 {
-    wait until ship:airspeed < 0.01.
+local st_up is lookdirup(up:forevector, ship:facing:topvector).
+lock steering to st_up.
+until ship:airspeed < 0.1 {
+    wait until ship:airspeed < 0.1.
     wait 0.1.
 }
 
