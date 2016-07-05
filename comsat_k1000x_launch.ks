@@ -1,11 +1,9 @@
 @lazyglobal off.
-// TODO 10kb/5kb limit
+// TODO 5kb limit
+parameter gravity_angle.
 parameter target_orbit is 1000000.
 parameter low_orbit is 80000.
-//parameter gravity_angle is 7.0. // TODO for X1
-parameter gravity_angle is 9.0. // for X2
-//parameter throttle_speed is 75. // TODO for X1
-parameter throttle_speed is 75. // for X2
+parameter throttle_speed is 75.
 parameter angle_period is 90.
 
 // TODO doesn't work:

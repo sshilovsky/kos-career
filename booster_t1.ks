@@ -39,6 +39,11 @@ until ship:airspeed < 0.1 {
 
 booster_notify("launch").
 lock throttle to 1.
+for m in ship:modulesnamed("LaunchClamp") {
+    if m:hasevent("release clamp") {
+        m:doevent("release clamp").
+    }
+}
 lock steering to geo_side_heading(ascent_compass, 90).
 if ship:maxthrust = 0 {
     wait until stage:ready.
