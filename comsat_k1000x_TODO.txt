@@ -7,9 +7,7 @@
 
 * removing alarms. some owner-specific #ids might be used
 
-* after-stage probe aligning doesn't work well if some of them have
-  apoapsis>80k while others don't
-
 ! try to keep 1.8 twr after 32000k; decrease pitch maneuver starting speed;
 increase 32000k border to 35k
 
+* try WAIT to synchronize hasnode/nextnode/remove operations

@@ -12,6 +12,11 @@ run comsat_k1000x_lib_common.
 run comsat_k1000x_lib_orbit.
 run id.
 
+if ship:name<>newname {
+	notify("renamed to "+newname).
+	set ship:name to newname.
+}
+
 function align_prograde {
 	parameter vess.
 	wait until vectorangle(vess:velocity:orbit, vess:facing:forevector) < 5
@@ -22,8 +27,6 @@ if periapsis < body:atm:height and apoapsis < low_orbit {
 	lock steering to -ship:velocity:orbit.
 	wait 1.
 	lock steering to ship:velocity:orbit.
-	notify("renamed to "+newname).
-	set ship:name to newname.
 
 	// align steering on all probes
 	local tgts is 0.
@@ -33,10 +36,13 @@ if periapsis < body:atm:height and apoapsis < low_orbit {
 		set n to 1.
 		list targets in tgts.
 		for t in tgts {
+			wait 0.
 			if t:name:startswith(nameprefix) and t:position:mag < 1000 {
 				set n to n + 1.
-				align_prograde(t).
-				notify("aligned vs " + t:name).
+				if t:altitude < low_orbit {
+
+					align_prograde(t).
+				}
 			}
 		}
 	}
