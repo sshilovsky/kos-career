@@ -44,8 +44,8 @@ if abs(ship:orbit:period - target_period) > period_acceptable_error {
 	if ship:orbit:period > target_period {
 		set const to -1.
 	}
-	lock_steering(const * prograde:forevector).
-	lock steering to const * prograde:forevector.
+	lock_steering(const * ship:velocity:orbit).
+	lock steering to const * ship:velocity:orbit).
 	local time0 is time:seconds.
 	local period0 is ship:orbit:period.
 	lock throttle to 0.000000001.

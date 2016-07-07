@@ -11,3 +11,7 @@
 increase 32000k border to 35k
 
 * try WAIT to synchronize hasnode/nextnode/remove operations
+
+* keep suborbital insertion related data in file on volume 0: list of ship names and/or their align status
+
+* iterative sync; fix sync errors
